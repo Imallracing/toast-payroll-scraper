@@ -1,13 +1,12 @@
 {
-  "name": "toast-payroll-scraper",
+  "name": "toast-payroll-scraper-v2",
   "version": "1.0.0",
-  "description": "Scrape toast payroll data for journal entry",
+  "description": "Scrape Toast Payroll data for journal entry",
   "main": "main.js",
   "scripts": {
     "start": "node main.js"
   },
   "dependencies": {
-    "playwright": "^1.52.0",
-    "puppeteer": "^21.3.8"
+    "playwright": "^1.52.0"
   }
 }
