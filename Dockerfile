@@ -5,6 +5,5 @@ RUN npm install
 
 COPY . ./
 
-RUN npx playwright install --with-deps
-
 CMD ["node", "main.js"]
+
