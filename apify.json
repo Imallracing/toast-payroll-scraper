@@ -1,0 +1,21 @@
+{
+  "name": "toast-payroll-scraper",
+  "version": "0.0.1",
+  "buildTag": "latest",
+  "actorSpecification": 1,
+  "title": "Toast Payroll Scraper",
+  "description": "Scrapes a Toast payroll summary page for a given payroll date",
+  "storages": {
+    "dataset": {}
+  },
+  "input": {
+    "title": "Input schema",
+    "type": "object",
+    "properties": {
+      "loginEmail": { "type": "string", "title": "Login Email" },
+      "loginPassword": { "type": "string", "title": "Password" },
+      "targetPayrollDate": { "type": "string", "title": "Payroll Date (e.g. 5/5/25 - 5/11/25)" }
+    },
+    "required": ["loginEmail", "loginPassword", "targetPayrollDate"]
+  }
+}
