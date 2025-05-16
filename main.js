@@ -1,39 +1,39 @@
-const Apify = require('apify');
-const { chromium } = require('playwright');
+import { Actor } from 'apify';
+import { chromium } from 'playwright';
 
-Apify.main(async () => {
-    const input = await Apify.getInput();
-    const cookies = input.cookies;
+await Actor.init();
 
-    if (!cookies || !Array.isArray(cookies) || cookies.length === 0) {
-        throw new Error('❌ No cookies provided in INPUT. Please pass valid session cookies.');
-    }
-
-    const browser = await chromium.launch({ headless: true });
-    const context = await browser.newContext();
-
-    // Inject session cookies
-    await context.addCookies(cookies);
-
-    const page = await context.newPage();
-
-    try {
-        await page.goto('https://payroll.toasttab.com/dashboard', {
-            waitUntil: 'load',
-            timeout: 60000
-        });
-
-        // Screenshot to confirm login
-        await page.screenshot({ path: 'dashboard.png' });
-
-        // You could also scrape something here like payroll status
-        const content = await page.content();
-        console.log('✅ Dashboard loaded. Content length:', content.length);
-
-        await browser.close();
-    } catch (err) {
-        console.error('❌ Navigation or scraping failed:', err.message);
-        await browser.close();
-        throw err;
-    }
+const browser = await chromium.launch({
+    headless: true,
 });
+const page = await browser.newPage();
+
+// Step 1: Set cookies (if using session reuse)
+const session = await Actor.getValue('SESSION'); // store your valid cookies under 'SESSION'
+if (session && session.cookies) {
+    await page.context().addCookies(session.cookies);
+}
+
+// Step 2: Navigate directly to Payroll Summary
+await page.goto('https://payroll.toasttab.com/mvc/intajuicegreeley/PayrollSummary', {
+    waitUntil: 'networkidle',
+    timeout: 60000,
+});
+
+// Step 3: Confirm page loaded
+await page.waitForSelector('h1, .payroll-summary-header, .payroll-summary-table', { timeout: 30000 });
+
+// Step 4: Scrape data
+const summaryData = await page.evaluate(() => {
+    const rows = Array.from(document.querySelectorAll('table tbody tr'));
+    return rows.map(row => {
+        const cells = Array.from(row.querySelectorAll('td'));
+        return cells.map(cell => cell.innerText.trim());
+    });
+});
+
+// Step 5: Store result
+await Actor.setValue('PAYROLL_SUMMARY', summaryData);
+
+await browser.close();
+await Actor.exit();
