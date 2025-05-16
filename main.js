@@ -10,44 +10,61 @@ Apify.main(async () => {
   const page = await context.newPage();
 
   try {
-    // Go to Toast Payroll login
+    // Step 1: Go to login
     await page.goto('https://payroll.toasttab.com', { waitUntil: 'networkidle' });
 
-    // Add delay to give React a moment to hydrate
-    await page.waitForTimeout(5000);
+    // Optional: slow things down a bit for React hydration
+    await page.waitForTimeout(6000);
 
-    // Wait for React-rendered login form
-    await page.waitForSelector('input[data-testid="email"]', { timeout: 30000 });
-    await page.waitForSelector('input[type="password"]', { timeout: 30000 });
+    // Step 2: Try multiple selectors for email input
+    const emailSelectors = [
+      'input[name="Email"]',
+      '#Email',
+      'input[type="email"]',
+      'input[autocomplete="username"]',
+      'input[type="text"]'
+    ];
 
-    // Fill in login form
-    await page.fill('input[data-testid="email"]', email);
+    let emailSelectorFound = null;
+    for (const selector of emailSelectors) {
+      try {
+        await page.waitForSelector(selector, { timeout: 3000 });
+        emailSelectorFound = selector;
+        break;
+      } catch (_) {}
+    }
+
+    if (!emailSelectorFound) {
+      await page.screenshot({ path: 'email-selector-failed.png' });
+      const html = await page.content();
+      throw new Error('❌ Could not find email input. Screenshot and HTML logged.');
+    }
+
+    // Step 3: Fill form
+    await page.fill(emailSelectorFound, email);
     await page.fill('input[type="password"]', password);
     await page.click('button[type="submit"]');
 
-    // Wait for redirect
+    // Step 4: Wait for redirect to dashboard
     await page.waitForURL(/dashboard|home/i, { timeout: 15000 });
 
-    // Handle 2FA if shown
-    const remind = page.locator('text=Remind Me Later');
-    if (await remind.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await remind.click();
+    // Step 5: Optional 2FA bypass
+    const remindLater = page.locator('text=Remind Me Later');
+    if (await remindLater.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await remindLater.click();
     }
 
-    // ✅ Logged in successfully
-    console.log('✅ Login successful!');
-
-    // You can insert scraping logic here...
-
-    // Example: return dummy result
-    await Apify.pushData({ success: true, message: 'Logged in and ready to scrape.' });
+    // ✅ Done
+    console.log('✅ Login successful. Ready to scrape.');
+    await Apify.pushData({ success: true });
 
   } catch (err) {
-    console.error('❌ Scraper failed:', err);
-    await page.screenshot({ path: 'error-state.png', fullPage: true });
+    console.error('❌ Script failed:', err.message);
+    await page.screenshot({ path: 'login-error.png', fullPage: true });
+    const html = await page.content();
+    await Apify.setValue('DEBUG_HTML', html, { contentType: 'text/html' });
     throw err;
   } finally {
     await browser.close();
   }
 });
-
