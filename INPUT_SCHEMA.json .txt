@@ -1,26 +1,8 @@
 {
-  "title": "Toast Payroll Credentials",
-  "description": "Enter your Toast Payroll login details",
   "type": "object",
-  "schemaVersion": 1,
   "properties": {
-    "email": {
-      "title": "Email",
-      "type": "string",
-      "description": "Your Toast Payroll login email"
-    },
-    "password": {
-      "title": "Password",
-      "type": "string",
-      "description": "Your Toast Payroll login password",
-      "editor": "password"
-    }
+    "email": { "type": "string" },
+    "password": { "type": "string" }
   },
   "required": ["email", "password"]
-const browser = await Apify.launchPlaywright({
-  headless: true,
-  useChrome: true,
-  proxyUrl: proxyConfiguration.newProxyUrl()
-});
-
 }
