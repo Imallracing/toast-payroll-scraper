@@ -2,58 +2,57 @@ const Apify = require('apify');
 const { chromium } = require('playwright');
 
 Apify.main(async () => {
-    const input = await Apify.getInput();
-    const browser = await chromium.launch({ headless: true });
-    const context = await browser.newContext();
+  const input = await Apify.getInput();
+  const cookies = input.cookies;
 
-    // Load session cookies if available
-    const cookies = await Apify.getValue('SESSION_COOKIES');
-    if (cookies) {
-        await context.addCookies(cookies);
-        console.log('✅ Reused session cookies');
-    }
+  const browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext();
 
-    const page = await context.newPage();
+  // Inject cookies before navigation
+  await context.addCookies(cookies);
 
-    // Go to base Toast dashboard
-    await page.goto('https://payroll.toasttab.com/', {
-        waitUntil: 'domcontentloaded',
-        timeout: 60000,
-    });
+  const page = await context.newPage();
 
-    // Ensure still logged in
-    if (await page.$('input[name="Email"], input[type="email"]')) {
-        throw new Error('❌ Session expired. Re-login required.');
-    }
+  // Go to main dashboard page
+  console.log('Navigating to dashboard...');
+  await page.goto('https://payroll.toasttab.com/mvc/intajuicegreeley/Dashboard/Root/Messages', {
+    waitUntil: 'domcontentloaded'
+  });
 
-    // Go to Payroll Summary
-    const payrollUrl = 'https://payroll.toasttab.com/mvc/intajuicegreeley/PayrollSummary';
-    console.log(`📍 Navigating to: ${payrollUrl}`);
-    await page.goto(payrollUrl, {
-        waitUntil: 'networkidle',
-        timeout: 60000,
-    });
+  // Step 1: Click "Continue" button
+  console.log('Clicking "Continue"...');
+  await page.waitForSelector('button:has-text("Continue")', { timeout: 10000 });
+  await page.click('button:has-text("Continue")');
 
-    // Wait for payroll table or throw detailed error
-    try {
-        await page.waitForSelector('table tbody tr', { timeout: 30000 });
-    } catch (err) {
-        const content = await page.content();
-        throw new Error(`❌ Table not found. Current URL: ${page.url()}\nPage Content Snippet:\n${content.slice(0, 1000)}`);
-    }
+  // Step 2: Click "Payroll"
+  console.log('Clicking "Payroll"...');
+  await page.waitForSelector('a:has-text("Payroll")', { timeout: 10000 });
+  await page.click('a:has-text("Payroll")');
 
-    const data = await page.$$eval('table tbody tr', rows => {
-        return rows.map(row => {
-            const cols = Array.from(row.querySelectorAll('td'));
-            return cols.map(td => td.innerText.trim());
-        });
-    });
+  // Step 3: Click "Past Payroll"
+  console.log('Clicking "Past Payroll"...');
+  await page.waitForSelector('a:has-text("Past Payroll")', { timeout: 10000 });
+  await page.click('a:has-text("Past Payroll")');
 
-    await Apify.setValue('PAYROLL_SUMMARY', data);
-    console.log(`✅ Extracted ${data.length} rows from summary`);
+  // Step 4: Click "View" for most recent payroll
+  console.log('Clicking "View" on most recent payroll...');
+  await page.waitForSelector('a:has-text("View")', { timeout: 10000 });
+  const viewButtons = await page.$$('a:has-text("View")');
 
-    const newCookies = await context.cookies();
-    await Apify.setValue('SESSION_COOKIES', newCookies);
+  if (viewButtons.length === 0) {
+    throw new Error('❌ No "View" buttons found on Past Payroll page.');
+  }
 
-    await browser.close();
+  // Assume the first one is the most recent
+  await viewButtons[0].click();
+
+  // Wait for page to load
+  await page.waitForLoadState('domcontentloaded');
+
+  // Log success and optional HTML output
+  const content = await page.content();
+  console.log('✅ Payroll page loaded. Content length:', content.length);
+
+  await browser.close();
 });
+
