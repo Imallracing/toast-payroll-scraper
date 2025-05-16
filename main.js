@@ -5,44 +5,56 @@ Apify.main(async () => {
   const input = await Apify.getInput();
   const { email, password } = input;
 
-  const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext();
+  const browser = await chromium.launch({
+    headless: true,
+    args: ['--no-sandbox'],
+  });
+
+  const context = await browser.newContext({
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36',
+    viewport: { width: 1280, height: 800 },
+  });
+
   const page = await context.newPage();
 
   try {
-    // Step 1: Navigate to Toast Payroll login page
-    await page.goto('https://payroll.toasttab.com', { waitUntil: 'domcontentloaded' });
+    await page.goto('https://payroll.toasttab.com', { waitUntil: 'domcontentloaded', timeout: 60000 });
 
-    // Step 2: Wait for the email input
-    const emailSelector = 'input[type="email"], input[name="email"], input[type="text"]';
-    await page.waitForSelector(emailSelector, { timeout: 10000 });
-    await page.fill(emailSelector, email);
+    // Step 1: Fill email and click "Next"
+    await page.waitForSelector('input[type="email"], input[data-testid="email"]', { timeout: 30000 });
+    await page.fill('input[type="email"], input[data-testid="email"]', email);
+    await page.click('button[type="submit"], button:has-text("Next")');
 
-    // Step 3: Click "Next"
-    const nextBtn = await page.locator('button:has-text("Next")');
-    await nextBtn.click();
+    // Step 2: Wait for password input
+    await page.waitForURL(/auth\.toasttab\.com/, { timeout: 60000 });
+    await page.waitForSelector('input[type="password"]', { timeout: 30000 });
+    await page.fill('input[type="password"]', password);
+    await page.click('button[type="submit"], button:has-text("Log In")');
 
-    // Step 4: Wait for password input
-    const pwSelector = 'input[type="password"]';
-    await page.waitForSelector(pwSelector, { timeout: 10000 });
-    await page.fill(pwSelector, password);
+    // Step 3: Cloudflare bot protection
+    await page.waitForLoadState('networkidle', { timeout: 60000 });
 
-    // Step 5: Submit login
-    const signInBtn = await page.locator('button:has-text("Sign in")');
-    await signInBtn.click();
+    // Optional 2FA skip
+    try {
+      const remindMeLater = page.locator('text=Remind Me Later');
+      if (await remindMeLater.isVisible({ timeout: 5000 })) {
+        await remindMeLater.click();
+      }
+    } catch (_) {}
 
-    // Step 6: Wait for dashboard or known redirect
-    await page.waitForURL(/dashboard|home/i, { timeout: 15000 });
+    // Step 4: Wait for dashboard
+    await page.waitForURL(/dashboard/i, { timeout: 60000 });
 
-    console.log('✅ Login successful!');
-    await Apify.pushData({ status: 'success', step: 'login-passed' });
+    // Screenshot confirmation
+    await page.screenshot({ path: 'dashboard-confirmation.png', fullPage: true });
 
-  } catch (err) {
-    console.error('❌ Login failed:', err.message);
-    await page.screenshot({ path: 'login-error.png', fullPage: true });
-    const html = await page.content();
-    await Apify.setValue('DEBUG_HTML', html, { contentType: 'text/html' });
-    throw err;
+    // 🧠 Insert scraping logic here OR mark success
+    await Apify.pushData({ success: true, message: 'Logged in successfully!' });
+
+  } catch (error) {
+    await page.screenshot({ path: 'error-screenshot.png', fullPage: true });
+    console.error('❌ Login failed:', error);
+    throw error;
   } finally {
     await browser.close();
   }

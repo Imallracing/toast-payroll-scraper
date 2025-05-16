@@ -1,13 +1,11 @@
 {
   "name": "toast-payroll-scraper",
   "version": "1.0.0",
-  "description": "Scrape toast payroll data for journal entry",
-  "main": "main.js",
+  "dependencies": {
+    "apify": "^2.3.1",
+    "playwright": "^1.43.0"
+  },
   "scripts": {
     "start": "node main.js"
-  },
-"dependencies": {
-  "apify": "2.3.1",
-  "playwright": "^1.52.0"
-}
+  }
 }
