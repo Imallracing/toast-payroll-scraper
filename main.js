@@ -12,27 +12,25 @@ Apify.main(async () => {
     const browser = await chromium.launch({ headless: true });
     const context = await browser.newContext();
 
-    // Inject session cookies
+    // Apply cookies
     await context.addCookies(cookies);
 
     const page = await context.newPage();
 
     try {
+        console.log('🔐 Navigating to Toast Payroll dashboard...');
         await page.goto('https://payroll.toasttab.com/dashboard', {
             waitUntil: 'load',
             timeout: 60000
         });
 
-        // Screenshot to confirm login
+        console.log('📸 Taking screenshot for verification...');
         await page.screenshot({ path: 'dashboard.png' });
 
-        // You could also scrape something here like payroll status
-        const content = await page.content();
-        console.log('✅ Dashboard loaded. Content length:', content.length);
-
+        console.log('✅ Logged in successfully with cookies!');
         await browser.close();
     } catch (err) {
-        console.error('❌ Navigation or scraping failed:', err.message);
+        console.error('❌ Login/navigation failed:', err.message);
         await browser.close();
         throw err;
     }
