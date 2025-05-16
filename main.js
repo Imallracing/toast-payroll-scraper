@@ -1,12 +1,12 @@
 const Apify = require('apify');
-const { chromium } = require('playwright'); // Headless browser
+const { chromium } = require('playwright');
 
 Apify.main(async () => {
     const input = await Apify.getInput();
     const browser = await chromium.launch({ headless: true });
     const context = await browser.newContext();
 
-    // Try loading cookies from previous session
+    // Load session cookies if available
     const cookies = await Apify.getValue('SESSION_COOKIES');
     if (cookies) {
         await context.addCookies(cookies);
@@ -15,37 +15,43 @@ Apify.main(async () => {
 
     const page = await context.newPage();
 
-    // Go to Toast dashboard (should redirect if session works)
+    // Go to base Toast dashboard
     await page.goto('https://payroll.toasttab.com/', {
         waitUntil: 'domcontentloaded',
         timeout: 60000,
     });
 
-    // Check if still logged in or not
+    // Ensure still logged in
     if (await page.$('input[name="Email"], input[type="email"]')) {
-        throw new Error('❌ Session expired or not logged in. Re-login required.');
+        throw new Error('❌ Session expired. Re-login required.');
     }
 
-    // Navigate directly to Payroll Summary page
-    await page.goto('https://payroll.toasttab.com/mvc/intajuicegreeley/PayrollSummary', {
+    // Go to Payroll Summary
+    const payrollUrl = 'https://payroll.toasttab.com/mvc/intajuicegreeley/PayrollSummary';
+    console.log(`📍 Navigating to: ${payrollUrl}`);
+    await page.goto(payrollUrl, {
         waitUntil: 'networkidle',
         timeout: 60000,
     });
 
-    await page.waitForSelector('table', { timeout: 30000 });
+    // Wait for payroll table or throw detailed error
+    try {
+        await page.waitForSelector('table tbody tr', { timeout: 30000 });
+    } catch (err) {
+        const content = await page.content();
+        throw new Error(`❌ Table not found. Current URL: ${page.url()}\nPage Content Snippet:\n${content.slice(0, 1000)}`);
+    }
 
-    const payrollData = await page.evaluate(() => {
-        const rows = Array.from(document.querySelectorAll('table tbody tr'));
+    const data = await page.$$eval('table tbody tr', rows => {
         return rows.map(row => {
-            return Array.from(row.querySelectorAll('td')).map(cell => cell.innerText.trim());
+            const cols = Array.from(row.querySelectorAll('td'));
+            return cols.map(td => td.innerText.trim());
         });
     });
 
-    // Save scraped data
-    await Apify.setValue('PAYROLL_SUMMARY', payrollData);
-    console.log(`✅ Payroll summary scraped. Rows: ${payrollData.length}`);
+    await Apify.setValue('PAYROLL_SUMMARY', data);
+    console.log(`✅ Extracted ${data.length} rows from summary`);
 
-    // Save cookies for next login
     const newCookies = await context.cookies();
     await Apify.setValue('SESSION_COOKIES', newCookies);
 
