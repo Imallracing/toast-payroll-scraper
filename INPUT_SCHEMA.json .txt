@@ -17,4 +17,10 @@
     }
   },
   "required": ["email", "password"]
+const browser = await Apify.launchPlaywright({
+  headless: true,
+  useChrome: true,
+  proxyUrl: proxyConfiguration.newProxyUrl()
+});
+
 }
