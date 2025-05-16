@@ -7,7 +7,7 @@ Apify.main(async () => {
 
   const browser = await chromium.launch({
     headless: true,
-    args: ['--no-sandbox'],
+    args: ['--no-sandbox']
   });
 
   const context = await browser.newContext({
@@ -18,44 +18,46 @@ Apify.main(async () => {
   const page = await context.newPage();
 
   try {
+    // STEP 1: Open login screen
     await page.goto('https://payroll.toasttab.com', { waitUntil: 'domcontentloaded', timeout: 60000 });
 
-    // Step 1: Fill email and click "Next"
-    await page.waitForSelector('input[type="email"], input[data-testid="email"]', { timeout: 30000 });
-    await page.fill('input[type="email"], input[data-testid="email"]', email);
-    await page.click('button[type="submit"], button:has-text("Next")');
+    // STEP 2: Enter email
+    await page.waitForSelector('#username', { timeout: 30000 });
+    await page.fill('#username', email);
+    await page.click('button[type="submit"]');
 
-    // Step 2: Wait for password input
+    // STEP 3: Wait for auth page to redirect
     await page.waitForURL(/auth\.toasttab\.com/, { timeout: 60000 });
     await page.waitForSelector('input[type="password"]', { timeout: 30000 });
-    await page.fill('input[type="password"]', password);
-    await page.click('button[type="submit"], button:has-text("Log In")');
 
-    // Step 3: Cloudflare bot protection
+    // STEP 4: Fill password
+    await page.fill('input[type="password"]', password);
+    await page.click('button[type="submit"]');
+
+    // STEP 5: Wait for redirect to dashboard (or prompt)
     await page.waitForLoadState('networkidle', { timeout: 60000 });
 
-    // Optional 2FA skip
+    // Optional: Skip 2FA reminder if needed
     try {
-      const remindMeLater = page.locator('text=Remind Me Later');
-      if (await remindMeLater.isVisible({ timeout: 5000 })) {
-        await remindMeLater.click();
+      const remindBtn = page.locator('text=Remind Me Later');
+      if (await remindBtn.isVisible({ timeout: 3000 })) {
+        await remindBtn.click();
       }
     } catch (_) {}
 
-    // Step 4: Wait for dashboard
     await page.waitForURL(/dashboard/i, { timeout: 60000 });
 
-    // Screenshot confirmation
-    await page.screenshot({ path: 'dashboard-confirmation.png', fullPage: true });
+    // Screenshot proof of login
+    await page.screenshot({ path: 'success-dashboard.png', fullPage: true });
 
-    // 🧠 Insert scraping logic here OR mark success
-    await Apify.pushData({ success: true, message: 'Logged in successfully!' });
+    await Apify.pushData({ success: true, message: 'Login successful.' });
 
-  } catch (error) {
-    await page.screenshot({ path: 'error-screenshot.png', fullPage: true });
-    console.error('❌ Login failed:', error);
-    throw error;
+  } catch (err) {
+    await page.screenshot({ path: 'login-error.png', fullPage: true });
+    console.error('❌ Scraper failed:', err.message);
+    throw err;
   } finally {
     await browser.close();
   }
 });
+
