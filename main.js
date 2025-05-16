@@ -14,7 +14,17 @@ Apify.main(async () => {
     await page.goto('https://payroll.toasttab.com', { waitUntil: 'networkidle' });
 
     // Optional debug screenshot
-    await page.screenshot({ path: 'toast-login.png', fullPage: true });
+   await page.goto('https://payroll.toasttab.com', { waitUntil: 'networkidle' });
+await page.waitForTimeout(5000);
+
+// 🔍 Take screenshot to verify what's on screen before interacting
+await page.screenshot({ path: 'before-wait.png', fullPage: true });
+
+const html = await page.content();
+console.log(html);
+
+// Wait for login form
+await page.waitForSelector('input[name="Email"], #Email', { timeout: 30000 });
 
     // 2. Let any JS-heavy elements settle
     await page.waitForTimeout(5000);
