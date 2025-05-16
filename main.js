@@ -1,53 +1,56 @@
-import { Actor } from 'apify';
-import { chromium } from 'playwright';
+const Apify = require('apify');
+const { chromium } = require('playwright');
 
-await Actor.init();
+Apify.main(async () => {
+    const input = await Apify.getInput();
+    const cookies = input.cookies;
 
-// Load cookies from INPUT schema
-const input = await Actor.getInput();
-const cookies = input.cookies; // should be array of Playwright cookie objects
-if (!cookies || !cookies.length) throw new Error('No cookies provided');
+    if (!cookies || !Array.isArray(cookies)) {
+        throw new Error('No cookies found in input. Please provide an array of cookies.');
+    }
 
-const browser = await chromium.launch({ headless: true });
-const context = await browser.newContext();
+    const browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext();
+    const page = await context.newPage();
 
-// Set cookies manually
-await context.addCookies(cookies);
+    // Set cookies
+    await context.addCookies(cookies);
 
-const page = await context.newPage();
+    // Go to dashboard (assumes cookies are valid)
+    await page.goto('https://payroll.toasttab.com/intajuicegreeley/dashboard', { waitUntil: 'networkidle' });
 
-// 1. Go to dashboard
-await page.goto('https://payroll.toasttab.com/intajuicegreeley/dashboard', {
-    waitUntil: 'domcontentloaded',
+    // Click Continue if button is present
+    try {
+        const continueBtn = await page.waitForSelector('button:has-text("Continue")', { timeout: 5000 });
+        await continueBtn.click();
+        console.log('Clicked Continue.');
+    } catch (e) {
+        console.log('No Continue button, already authorized or bypassed.');
+    }
+
+    // Wait for dashboard
+    await page.waitForSelector('text=Payroll', { timeout: 10000 });
+    await page.click('text=Payroll');
+
+    // Click Past Payrolls tab
+    await page.waitForSelector('text=Past Payrolls', { timeout: 10000 });
+    await page.click('text=Past Payrolls');
+
+    // Click "View" on the first past payroll (adjust selector as needed)
+    await page.waitForSelector('text=View', { timeout: 10000 });
+    const viewButtons = await page.$$('text=View');
+    if (viewButtons.length === 0) throw new Error('No past payroll view buttons found.');
+    await viewButtons[0].click();
+    console.log('Navigated to past payroll detail.');
+
+    // Wait for receipt content to load
+    await page.waitForSelector('text=Payroll Withdrawal Receipt', { timeout: 10000 });
+    const content = await page.content();
+    console.log('Scraped payroll summary.');
+
+    // Save content
+    await Apify.setValue('payroll-summary-html', content);
+    await Apify.pushData({ html: content });
+
+    await browser.close();
 });
-
-// 2. Click "Continue" if present
-try {
-    const continueButton = await page.waitForSelector('button:has-text("Continue")', { timeout: 5000 });
-    await continueButton.click();
-    await page.waitForLoadState('networkidle');
-    console.log('✅ Clicked Continue');
-} catch {
-    console.log('ℹ️ No Continue button, already authorized');
-}
-
-// 3. Click "View payroll"
-await page.click('text=View payroll');
-await page.waitForLoadState('networkidle');
-
-// 4. Click "Past Payrolls" tab
-await page.click('text=Past Payrolls');
-await page.waitForLoadState('networkidle');
-
-// 5. Click "View" on most recent past payroll
-await page.click('text=View', { timeout: 5000 });
-await page.waitForLoadState('networkidle');
-
-// 6. Extract summary
-const content = await page.content();
-await Actor.setValue('payroll-summary-html', content, { contentType: 'text/html' });
-
-console.log('✅ Payroll summary page captured.');
-
-await browser.close();
-await Actor.exit();

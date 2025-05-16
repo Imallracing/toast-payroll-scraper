@@ -8,4 +8,7 @@
   "scripts": {
     "start": "node main.js"
   }
+{
+  "type": "module"
+}
 }
