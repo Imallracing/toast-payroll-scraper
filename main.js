@@ -10,37 +10,36 @@ Apify.main(async () => {
     const page = await context.newPage();
 
     try {
-        // Step 1: Go to login page
+        // Step 1: Navigate to Toast Payroll login
+        console.log('Navigating to https://payroll.toasttab.com');
         await page.goto('https://payroll.toasttab.com', { waitUntil: 'domcontentloaded', timeout: 60000 });
 
-        // Step 2: Wait for email field
+        // Step 2: Wait for and fill email field
+        console.log('Waiting for email input...');
         await page.waitForSelector('#username', { timeout: 30000 });
         await page.fill('#username', email);
         await page.click('button[type="submit"]');
 
-        // Step 3: Wait for Cloudflare / 2FA redirect
+        // Step 3: Cloudflare or CAPTCHA pause (allow network idle)
         await page.waitForLoadState('networkidle', { timeout: 60000 });
 
-        if (!page.url().includes('auth.toasttab.com')) {
-            throw new Error('Stuck on CAPTCHA or not redirected to auth.toasttab.com');
-        }
-
-        // Step 4: Wait for password field and log in
+        // Step 4: Wait for password field
+        console.log('Waiting for password input...');
         await page.waitForSelector('input[type="password"]', { timeout: 30000 });
         await page.fill('input[type="password"]', password);
         await page.click('button[type="submit"]');
 
-        // Step 5: Wait for successful login (dashboard or redirect)
-        await page.waitForURL(/dashboard|payroll/, { timeout: 60000 });
+        // Step 5: Wait for dashboard URL or authenticated redirect
+        await page.waitForURL(url => /dashboard|payroll/.test(url), { timeout: 60000 });
 
-        // Screenshot to confirm success
-        await page.screenshot({ path: 'success.png', fullPage: true });
+        // Screenshot success
+        await page.screenshot({ path: 'login-success.png', fullPage: true });
+        console.log('✅ Successfully logged in!');
 
-        console.log('✅ Login successful');
-    } catch (error) {
-        console.error('❌ Login failed:', error);
-        await page.screenshot({ path: 'login-error.png', fullPage: true });
-        throw error;
+    } catch (err) {
+        console.error('❌ Login failed:', err.message);
+        await page.screenshot({ path: 'login-failed.png', fullPage: true });
+        throw err;
     } finally {
         await browser.close();
     }
